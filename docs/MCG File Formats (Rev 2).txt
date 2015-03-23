@@ -1,0 +1,214 @@
+
+CMunsta's MechCommander Gold File Format Notes
+(revision 2)
+[Make sure word wrap is on. You may need to also widen the window]
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+   The following is just a bunch of notes I kept (and fixed up a bit) while working out how to get access to the MechCommander files. I was doing this mostly so I could try to figure out how to get a user made campaign going (the little info available that I could find is both woefully old and sketchy at best).
+
+   While making these notes, I created a few simple tools so that I could gain access to these files. Therefore, the notes presented here should at least give enough information to recreate the tools (or preferably better ones) except in the case of the compressor and decompressor. For these routines, I went and found the appropriate code in the game executable itself and hacked-out versions of these routines so that I could use them in the creation of my tools (or any other tool for that matter). 
+
+   Anyway, for those that could use this type of information, I hope this is usefull for you.
+
+   -CMunsta	
+
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+Revision History:
+-----------------
+
+Rev 2
+    - Added info on PAK files
+    - Added extra comments about DPK files.
+
+Rev 1
+    - Initial release
+
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+
+FST and DPK file format:
+------------------------
+
+Notes:
+  - Data in the FST is in compressed form (typically), the compression used is a Lempel-Ziv variant
+    (looks to me like an LZW). I'm not sure if this is in fact the case. Sort of redundant now as
+    the compressor and decompressor code ripped out of the game executable is working fine.
+    (see lzcompress_asm.c and lzdecomp_asm.c respectively).
+
+  - DPK files use the exact same format as FST file. In short, a DPK *is* an FST file.
+
+  - In a DPK file, I have yet to see any compressed data, while in the FST, it most definately is
+    compressed, but it doesn't have to be.
+
+  - To store uncompressed data in a FST (or DPK), simply set the uncompressed and compressed size
+    to the same values and copy the uncompressed data into the correct location in the FST/DPK.
+
+  - An FST (and hence also a DPK) file can be seen as a sort of virtual drive with a single 
+    directory in it. 
+
+  - In both the FST and DPK files, the path to the file (relative to the game root directory) is 
+    stored with the filename in the TOC. This means that we could technically extract all files
+    from the FST, delete the FST, and still run the missions as long as all the files extracted 
+    were in the correct locations. This seems to be born out from when we create DPK packages and
+    extract the FST on another player's computer. I haven't tried this with the full mission
+    campaign file though.
+    
+  - The MCExtractor tool normally used to extract files from a DPK actually looks for a single 
+    .FST file and a single .SOL file within the DPK. If this is not the case, MCExtractor will 
+    refuse to work with the DPK. Further, MCExtractor does not appear to be able to handle 
+    compression, this would then seem to be the reason why DPKs are never compressed. These 
+    factors should be kept in mind if attempting to create your own DPK creator using the
+    information in this document.
+
+
+Offset  Size         Description
+------  ----         -------------------------------------
+000000  DWORD        Number of entries in the TOC
+
+000004  262 * n      TOC Entries start here (262 bytes per entry)
+
+ xxxx   xxxx         Data for the FST/DPK (Starts immediately after TOC)
+
+  TOC Entries (262 bytes):
+  000000  DWORD      Offset into file where data is
+  000004  DWORD      Size in bytes of the stored data
+  000008  DWORD      Size in bytes of uncompressed data
+  00000C  250 bytes  String (zero filled). File and path this entry represents.
+
+
+Files in an FST and DPK file
+----------------------------
+
+For solo mission DPK files, there are only two files. First is the .SOL file for the misson, and then the actual FST file.
+
+For solo missions, the following files are put in the FST file:
+
+The names listed below assume the mission is called "name". Likely we only need one campaign file, the others
+are individualized for each map. The campaign name (likely) needs to be the named after the FST & SOL files, but the
+rest can be anything at all as they are referenced from within the campaign file. (order of files within the FST/DPK doesn't appear to be important).
+
+  data\missions\name_VAR.ABI
+  data\missions\name_STR.ABI
+  data\missions\name.TXT
+  data\missions\name_MP.ABI
+  data\missions\name_INIT.ABI
+  data\missions\name_LOP.ABI
+  data\missions\name.ABL
+  data\missions\campaignname.FIT
+  data\terrain\name.BDG
+  data\terrain\name.DAT
+  data\terrain\name.ELV
+  data\terrain\name.FIT
+  data\terrain\name.GMM
+  data\terrain\name.OBJ
+  data\terrain\name.PRE
+  data\terrain\name.TGA
+  data\terrain\name.LOG.TGA
+  data\missions\Warriors\nameParams.fit
+
+When using the editor to create a DPK file (which also creates the FST for inclusion in the DPK), it internally renames all the names except for the file "campaignXX.fit" whose name remains intact and takes on the same name as the FST file itself. e.g. if you made a mission map called TEST, then the FST file the editor creates will be called TEST.FST, the SOL file will be called TEST.SOL and the campaignXX.fit file will be called campaignTEST.FIT. All the other files are referenced from within the campaignTEST.FIT file or one of the other files and so these files are automatically changed to some UUID number instead of TEST. This is why we get strange long filenames in the FSTs. But a simple test I made shows that the UUID names are not required whatsoever. if we simply packed all the needed loose files the editor creates for the mission (as noted above) into an FST file, and used the appropriate SOL file, the mission will run just fine.
+
+
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+Format of PKK, SAV, MPK and SOL files:
+---------------------------------------
+
+Notes:
+  - The first DWORD is a "checksum" (not a very good one) created by simply summing all the bytes 
+    in the rest of the file (i.e. not including the checksum). I'm not sure if this is a unsigned
+    or signed value, but probably won't matter for the uses the PKK, SAV, MPK and SOL files are up
+    for. They don't have many files in them, and most are compressed as well.
+
+  - PKK, SAV, MPK, and SOL files all use the same format, but do not contain the same files. The MPK
+    seems to be the only one that does not have compressed files.
+
+  - No filenames are stored in these files (MPK, SOL, SAV, PKK), but all of them are .FIT files 
+    except for the second entry in the MPK file as far as I can tell (still only text though).
+
+  - In the case of the MPK file, the second entry seems to simply be text data, probably used in 
+    the description of the mission (haven't bothered to check).
+
+
+Offset      Size          Description
+------      ----          -----------------------------------------
+000000      DWORD         Simplistic checksum (see notes above)
+
+000004      DWORD         ("DataStartOffset") Offset where file data actually starts
+
+000008      DWORD * n     Table of offsets to the data in the file.
+                           -If an entry starts with 0x40 in its high byte (e.g. 0x40000969 or in a hex
+                            editor: 69 09 00 40) then the data is compressed and the real offset  
+                            must be ANDed with 0xBFFFFFFF (~0x40000000). For our example, the real 
+                            offset would then become 0x00000969. 
+                           -The number of entries in the offset table can be calculated like this:
+                                n = ("DataStartOffset" - 8) / 4
+
+ xxxx        xx           Start of data
+			   -If the file data is in compressed form, the first DWORD of the data is the 
+			    uncompressed size of the file. the rest of the data can be run through the 
+			    LZDecomp routine.
+
+
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+Format of PAK files:
+--------------------
+    
+Notes:
+    - PAK files are very similar to PKK files and the like, though not identical.
+    
+    - Instead of a checksum (as found in PKK files), there is an identifier DWORD at the start of 
+      the file.
+      
+    - Like PKK files, there are no filenames in these things
+    
+    - Files inside a PAK file do not appear to be compressed.
+    
+    - Some of the types of files found in PAK files include
+        o Wave files (.WAV)
+        o GIF and TGA images
+        o Binary data files
+        o Other PAK files (yes, you can embed a PAK file inside another PAK file).
+
+
+Offset   Size    Description
+------  ------   --------------------------------
+000000   DWORD   "Identifier" 0xFEEDFACE  (someone had a sense of humour)  All PAK files have this ID
+
+000004   DWORD   "DataStartOffset"  The offset from the start of the file where data actually starts
+
+000008  DWORD*n  Table of Contents
+                    n = (DataStartOffset-8) / 4
+        
+            Each entry in the TOC is a single DWORD in size, which contains the offset where the data
+            for this entry starts. A value of 0xE0 in the high byte of an entry indicates that the entry 
+            does not exist or has been deleted.
+
+            
+
+
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+.TGA and .LOG.TGA files:
+------------------------
+
+Notes:
+  - The .TGA and .LOG.TGA both use the same image, but are mapped to two different palettes for use in game.
+    Since the .TGA color palette is different from the .LOG.TGA palette, they cannot be used interchangably.
+    I suspect that the .TGA file (since it is used during gameplay) will have a different palette depending
+    on the tileset (Cermak / PortArthur) used as well. I haven't tested this however.
+
+  - The .LOG.TGA is used for the map in the briefing/deployment room while the .TGA is used for the map during
+    gameplay. Note that my first attempt to edit the TGAs, though they got displayed, showed up inverted in
+    game, even though they weren't inverted when I originally loaded them in photoshop (photoshop 5.5, used the 
+    default settings). So either photoshop isn't saving the .TGA the way the MCX likes them (possible), or I 
+    didn't click an appropriate option somewhere (even more likely). I simply inverted the image vertically
+    before saving in photoshop and everything was good in game.
+

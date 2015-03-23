@@ -1,0 +1,2 @@
+No source code because cmunsta never released it (he considered this tool not final). 
+According to him, this tool is only a slightly modified version of solextract anyway, adapted for paks as per MCG File Formats (Rev 2).txt.

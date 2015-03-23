@@ -1,0 +1,1 @@
+For convenience, I added this dir for easy access to the compression and decompression code that I used in the tools. This directory is not referenced by the other projects, but it makes it easy to get tot this code if attempting to make your own tools.
